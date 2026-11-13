@@ -34,6 +34,12 @@ Implementa un motor propio de **aritmética exacta con fracciones** que evita lo
   - **Validación automática de compatibilidad dimensional**: Verifica que las columnas de la matriz $i$ coincidan con las filas de la matriz $i+1$.
   - Soporta escalares por cada matriz en la cadena.
   - Muestra cada producto matricial parcial de izquierda a derecha.
+- **Modo 4: Matriz Inversa ($A^{-1}$)**:
+  - Calcula la matriz inversa de matrices cuadradas desde $2 \times 2$ hasta $8 \times 8$.
+  - Método de reducción de **Gauss-Jordan sobre la matriz aumentada $[A \mid I]$** hasta transformarla en $[I \mid A^{-1}]$.
+  - Detección precisa de **matrices singulares no invertibles** ($\det(A) = 0$).
+  - Procedimiento detallado paso a paso con la evolución de la matriz aumentada en cada operación elemental de fila.
+  - Ejemplo integrado listo para resolver con un solo clic.
 
 ### 3. Motor de Aritmética de Fracciones Exactas
 - Todas las operaciones internas ($+$, $-$, $\times$, $\div$) se calculan usando pares `{ n: numerador, d: denominador }` reducidos mediante el **Máximo Común Divisor (MCD)**.

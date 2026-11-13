@@ -1,4 +1,4 @@
-﻿/* ============================================================
+/* ============================================================
    Calculadora de Ãlgebra Lineal
    - Sistemas de ecuaciones lineales nÃ—n (Gauss-Jordan, fracciones exactas)
    - Operaciones con matrices m x n
@@ -1325,6 +1325,258 @@ $("clearCombine").addEventListener("click", () => {
 });
 
 /* ============================================================
+   MODO 4: MATRIZ INVERSA (A⁻¹)
+   Calcula la inversa por Gauss-Jordan sobre la matriz aumentada [A | I].
+   ============================================================ */
+let inverseSize = 3;
+let lastInverseResult = null;
+
+function buildInverseGrid(n) {
+  inverseSize = n;
+  const grid = $("inverseGrid");
+  grid.innerHTML = "";
+  if ($("invDimLabel")) $("invDimLabel").textContent = `${n} × ${n}`;
+
+  for (let r = 0; r < n; r++) {
+    const row = document.createElement("div");
+    row.className = "flex items-center gap-2 flex-nowrap py-1 group";
+
+    const tag = document.createElement("span");
+    tag.className = "text-xs font-bold font-mono text-slate-400 group-hover:text-indigo-600 transition-colors w-8 shrink-0 text-right pr-1 select-none";
+    tag.textContent = `F${r + 1}:`;
+    row.appendChild(tag);
+
+    for (let c = 0; c < n; c++) {
+      const input = document.createElement("input");
+      input.type = "number";
+      input.id = `INV_${r}_${c}`;
+      input.placeholder = "0";
+      input.className = "cell";
+      input.setAttribute("aria-label", `Fila ${r + 1}, columna ${c + 1}`);
+      row.appendChild(input);
+    }
+
+    grid.appendChild(row);
+  }
+}
+
+function readInverseMatrix(n) {
+  const M = [];
+  for (let r = 0; r < n; r++) {
+    const row = [];
+    for (let c = 0; c < n; c++) {
+      const val = parseFloat($(`INV_${r}_${c}`).value) || 0;
+      row.push(makeFrac(val));
+    }
+    // Agregar las columnas de la matriz identidad I_n
+    for (let c = 0; c < n; c++) {
+      row.push(makeFrac(r === c ? 1 : 0));
+    }
+    M.push(row);
+  }
+  return M;
+}
+
+// Renderiza la matriz aumentada [A | I] con la línea separadora
+function renderAugmentedInverse(M, n) {
+  let html = `
+    <div class="relative inline-block mt-3 px-3 py-2.5 bg-slate-50/90 border border-slate-200/90 rounded-2xl shadow-sm overflow-x-auto max-w-full">
+      <div class="flex items-center justify-between text-[11px] font-mono font-bold text-slate-400 mb-2 px-3">
+        <span class="text-indigo-600 font-bold">Lado Izquierdo (hacia I)</span>
+        <span class="text-teal-600 font-bold">Lado Derecho (hacia A⁻¹)</span>
+      </div>
+      <table class="border-collapse mx-auto">
+        <tbody>`;
+  M.forEach((row) => {
+    html += "<tr>";
+    row.forEach((f, c) => {
+      const isRight = c >= n;
+      const isDivider = c === n;
+      const sep = isDivider ? "border-l-2 border-indigo-400/80 " : "";
+      const bg = isRight ? "bg-teal-50/30 text-teal-950 font-medium " : "text-slate-800 ";
+      html += `<td class="px-3 py-1.5 text-center tabular-nums text-sm font-mono ${sep}${bg}">${fToStr(f)}</td>`;
+    });
+    html += "</tr>";
+  });
+  html += `
+        </tbody>
+      </table>
+    </div>`;
+  return html;
+}
+
+function calculateMatrixInverse(n) {
+  const M = readInverseMatrix(n);
+  const steps = [];
+  const record = (desc) => steps.push({ desc, matrix: cloneMatrix(M) });
+
+  record(`Planteamos la matriz aumentada [A | I] con la matriz identidad de orden ${n}.`);
+
+  for (let col = 0; col < n; col++) {
+    // 1. Buscar pivote no nulo en la columna
+    let sel = -1;
+    for (let r = col; r < n; r++) {
+      if (!fIsZero(M[r][col])) {
+        sel = r;
+        break;
+      }
+    }
+
+    if (sel === -1) {
+      // Toda la columna bajo el pivote es cero -> determinante = 0
+      return { success: false, reason: "singular", col, steps };
+    }
+
+    // 2. Intercambio de filas si es necesario
+    if (sel !== col) {
+      [M[col], M[sel]] = [M[sel], M[col]];
+      record(`Intercambiamos F${col + 1} ↔ F${sel + 1} para tener un pivote no nulo en la columna ${col + 1}.`);
+    }
+
+    // 3. Normalizar el pivote a 1
+    const piv = M[col][col];
+    if (!(piv.n === piv.d)) {
+      for (let c = 0; c < 2 * n; c++) {
+        M[col][c] = fDiv(M[col][c], piv);
+      }
+      record(`F${col + 1} → F${col + 1} ÷ (${fToStr(piv)}) para hacer 1 el pivote en la posición (${col + 1}, ${col + 1}).`);
+    }
+
+    // 4. Anular los demás elementos de la columna
+    for (let r = 0; r < n; r++) {
+      if (r === col || fIsZero(M[r][col])) continue;
+      const factor = M[r][col];
+      for (let c = 0; c < 2 * n; c++) {
+        M[r][c] = fSub(M[r][c], fMul(factor, M[col][c]));
+      }
+      record(`F${r + 1} → F${r + 1} − (${fToStr(factor)})·F${col + 1} para anular el elemento en la fila ${r + 1}.`);
+    }
+  }
+
+  // Extraer la mitad derecha [A⁻¹]
+  const inverse = M.map((row) => row.slice(n));
+  record("Se completó la reducción de Gauss-Jordan: el lado izquierdo es la matriz identidad I y el lado derecho es la matriz inversa A⁻¹.");
+  return { success: true, inverse, steps };
+}
+
+function renderInverseSteps(steps, n) {
+  const box = $("stepsInverse");
+  if (!$("showStepsInverse").checked || !steps || steps.length === 0) {
+    box.innerHTML = "";
+    return;
+  }
+
+  const items = steps
+    .map(
+      (s, i) => `
+      <div class="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-sm overflow-x-auto transition-all hover:border-slate-300">
+        <div class="flex items-center gap-2 mb-2">
+          <span class="text-xs font-bold uppercase tracking-wide px-2.5 py-0.5 rounded-full border bg-indigo-50 text-indigo-700 border-indigo-200">Gauss-Jordan [A | I]</span>
+          <span class="text-xs font-semibold text-slate-400">Paso ${i + 1} de ${steps.length}</span>
+        </div>
+        <p class="text-sm font-medium text-slate-800">${s.desc}</p>
+        ${renderAugmentedInverse(s.matrix, n)}
+      </div>`
+    )
+    .join("");
+
+  box.innerHTML = `
+    <div class="flex items-center justify-between mb-3.5">
+      <h4 class="font-bold text-slate-900 text-base flex items-center gap-2">
+        <svg width="20" height="20" class="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+        Procedimiento Paso a Paso (Gauss-Jordan [A | I] → [I | A⁻¹])
+      </h4>
+      <span class="text-xs font-semibold text-indigo-600 bg-indigo-50 border border-indigo-200 px-2.5 py-1 rounded-full">${steps.length} operaciones</span>
+    </div>
+    <div class="flex flex-col gap-3.5">${items}</div>`;
+}
+
+$("buildInverse").addEventListener("click", () => {
+  let n = parseInt($("inverseSize").value, 10);
+  if (isNaN(n) || n < 2) n = 2;
+  if (n > 8) { alert("El tamaño máximo para la matriz inversa es 8."); n = 8; }
+  $("inverseSize").value = n;
+  buildInverseGrid(n);
+  $("resultMatrix").innerHTML = "";
+  $("stepsInverse").innerHTML = "";
+  lastInverseResult = null;
+});
+
+$("exampleInverse").addEventListener("click", () => {
+  buildInverseGrid(3);
+  $("inverseSize").value = 3;
+  const ex = [
+    [2, 1, 1],
+    [1, 2, 1],
+    [1, 1, 2],
+  ];
+  for (let r = 0; r < 3; r++) {
+    for (let c = 0; c < 3; c++) {
+      const el = $(`INV_${r}_${c}`);
+      if (el) el.value = ex[r][c];
+    }
+  }
+  $("resultMatrix").innerHTML = "";
+  $("stepsInverse").innerHTML = "";
+  lastInverseResult = null;
+});
+
+$("inverseRun").addEventListener("click", () => {
+  if (!$("INV_0_0")) {
+    showMatrixResult("Atención", "<p class='text-sm text-slate-600'>Primero genera la matriz con el botón <em>Generar</em>.</p>", true);
+    return;
+  }
+
+  const res = calculateMatrixInverse(inverseSize);
+  lastInverseResult = res;
+
+  if (!res.success) {
+    showMatrixResult(
+      "Matriz No Invertible",
+      `<div class="flex items-start gap-3">
+        <div class="p-2 bg-rose-100 text-rose-600 rounded-xl shrink-0 mt-0.5">
+          <svg width="20" height="20" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+        </div>
+        <div>
+          <h4 class="font-bold text-base text-rose-700 m-0">Matriz Singular (det = 0)</h4>
+          <p class="text-sm text-rose-600/90 mt-1">La matriz no tiene inversa porque sus filas o columnas son linealmente dependientes (determinante igual a 0). En la columna ${res.col + 1} no fue posible encontrar ningún pivote no nulo.</p>
+        </div>
+      </div>`,
+      true
+    );
+    renderInverseSteps(res.steps, inverseSize);
+    return;
+  }
+
+  showMatrixResult(
+    "Matriz Inversa (A⁻¹)",
+    `<div class="flex flex-col gap-2.5">
+      <div class="flex items-center gap-2">
+        <div class="p-1 rounded-lg bg-emerald-100 text-emerald-600">
+          <svg width="18" height="18" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+        </div>
+        <h4 class="font-bold text-base text-slate-900 m-0">Inversa A⁻¹ calculada con éxito</h4>
+        <span class="text-xs bg-emerald-100 text-emerald-800 font-semibold px-2.5 py-0.5 rounded-full border border-emerald-200">Exacta</span>
+      </div>
+      <p class="text-sm text-slate-600">Se completó la reducción de Gauss-Jordan sobre la matriz aumentada [A | I]:</p>
+      <div>${renderMatrixFrac(res.inverse)}</div>
+    </div>`
+  );
+  renderInverseSteps(res.steps, inverseSize);
+});
+
+$("showStepsInverse").addEventListener("change", () => {
+  if (lastInverseResult) renderInverseSteps(lastInverseResult.steps, inverseSize);
+});
+
+$("clearInverse").addEventListener("click", () => {
+  document.querySelectorAll("#inverseGrid input").forEach((i) => (i.value = ""));
+  $("resultMatrix").innerHTML = "";
+  $("stepsInverse").innerHTML = "";
+  lastInverseResult = null;
+});
+
+/* ============================================================
    SELECTOR DE MODO DE MATRICES
    ============================================================ */
 const modeBtns = document.querySelectorAll(".mode-btn");
@@ -1337,21 +1589,25 @@ modeBtns.forEach((btn) => {
     $("mode-solve").classList.toggle("hidden", mode !== "solve");
     $("mode-combine").classList.toggle("hidden", mode !== "combine");
     $("mode-mul").classList.toggle("hidden", mode !== "mul");
+    $("mode-inverse").classList.toggle("hidden", mode !== "inverse");
 
     // Limpia resultados al cambiar de modo
     $("resultMatrix").innerHTML = "";
     if (mode !== "solve") $("stepsMatrix").innerHTML = "";
     if (mode !== "combine") $("stepsCombine").innerHTML = "";
+    if (mode !== "mul") $("stepsMul").innerHTML = "";
+    if (mode !== "inverse") $("stepsInverse").innerHTML = "";
   });
 });
 
-/* ---------- InicializaciÃ³n ---------- */
+/* ---------- Inicialización ---------- */
 window.addEventListener("DOMContentLoaded", () => {
   buildLinearGrid(3);
   buildSolveGrid(3);
   buildCombineGrids(2, 2, 2);
   buildMulDims(2);
   buildMulGrids(2);
+  buildInverseGrid(3);
 });
 
 
